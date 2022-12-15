@@ -1,0 +1,80 @@
+\Header{dpolya2}{~~function to do ... ~~}
+\keyword{~kwd1}{dpolya2}
+\keyword{~kwd2}{dpolya2}
+\begin{Description}\relax
+~~ A concise (1-5 lines) description of what the function does. ~~\end{Description}
+\begin{Usage}
+\begin{verbatim}
+dpolya2(partition, null, tau)
+\end{verbatim}
+\end{Usage}
+\begin{Arguments}
+\begin{ldescription}
+\item[\code{partition}] ~~Describe \code{partition} here~~ 
+\item[\code{null}] ~~Describe \code{null} here~~ 
+\item[\code{tau}] ~~Describe \code{tau} here~~ 
+\end{ldescription}
+\end{Arguments}
+\begin{Details}\relax
+~~ If necessary, more details than the __description__  above ~~\end{Details}
+\begin{Value}
+~Describe the value returned
+If it is a LIST, use
+\begin{ldescription}
+\item[\code{comp1 }] Description of `comp1'
+\item[\code{comp2 }] Description of `comp2'
+\end{ldescription}
+
+...\end{Value}
+\begin{Section}{WARNING}
+....\end{Section}
+\begin{Note}\relax
+~~further notes~~\end{Note}
+\begin{Author}\relax
+~~who you are~~\end{Author}
+\begin{References}\relax
+~put references to the literature/web site here ~\end{References}
+\begin{SeeAlso}\relax
+~~objects to SEE ALSO as \code{\Link{\textasciitilde{}\textasciitilde{}fun\textasciitilde{}\textasciitilde{}}}, ~~~\end{SeeAlso}
+\begin{Examples}
+\begin{ExampleCode}
+##---- Should be DIRECTLY executable !! ----
+##-- ==>  Define data, use random,
+##--         or do  help(data=index)  for the standard data sets.
+
+## The function is currently defined as
+function(partition,null,tau)
+ {
+  ####################################################################
+  #
+  # Evaluate the log of the probability mass of a double-Polya prior.
+  # This is used as the prior distribution for the network structure
+  # in the  Instability-Selection-Network Model.
+  #
+  # partition = nswitch vector holding distinct path labels
+  # null = logical vector indicating active (i.e. relevant) switches
+  # tau = clustering parameter: bigger <-> more paths
+  #
+  ####################################################################
+
+  # first the null part of the logprior  (beta-binomial piece)
+  nswitch <- length(partition)
+  nnull <- sum( null )
+  logp <- lgamma(nnull+1)+lgamma(nswitch-nnull+1)-lgamma(nswitch+2)
+
+  # Now the cluster prior on the other switches
+  if( !all(null) )
+   {
+    mm <- nswitch-nnull
+    apart <- partition[!null] 
+    incidence <- outer( apart, unique(apart), "==" )
+    sizes <- t(incidence) 
+    npath <- length(sizes)
+    logp <- logp + npath*log(tau) + sum( lgamma(sizes) ) 
+    logp <- logp + lgamma(tau)-lgamma(mm+tau)
+   }
+  return( logp )
+ }
+\end{ExampleCode}
+\end{Examples}
+

@@ -1,0 +1,137 @@
+<html><head><title>R: ~~function to do ... ~~</title>
+<link rel="stylesheet" type="text/css" href="../../R.css">
+</head><body>
+
+<table width="100%" summary="page for dpolya1 {FOO}"><tr><td>dpolya1 {FOO}</td><td align="right">R Documentation</td></tr></table>
+<h2>~~function to do ... ~~</h2>
+
+
+<h3>Description</h3>
+
+<p>
+~~ A concise (1-5 lines) description of what the function does. ~~
+</p>
+
+
+<h3>Usage</h3>
+
+<pre>
+dpolya1(partition, null, tau)
+</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>partition</code></td>
+<td>
+~~Describe <code>partition</code> here~~ </td></tr>
+<tr valign="top"><td><code>null</code></td>
+<td>
+~~Describe <code>null</code> here~~ </td></tr>
+<tr valign="top"><td><code>tau</code></td>
+<td>
+~~Describe <code>tau</code> here~~ </td></tr>
+</table>
+
+<h3>Details</h3>
+
+<p>
+~~ If necessary, more details than the __description__  above ~~
+</p>
+
+
+<h3>Value</h3>
+
+<p>
+~Describe the value returned
+If it is a LIST, use
+</p>
+<table summary="R argblock">
+<tr valign="top"><td><code>comp1 </code></td>
+<td>
+Description of `comp1'</td></tr>
+<tr valign="top"><td><code>comp2 </code></td>
+<td>
+Description of `comp2'</td></tr>
+</table>
+<p>
+
+...</p>
+
+<h3>WARNING</h3>
+
+<p>
+....
+</p>
+
+
+<h3>Note</h3>
+
+<p>
+~~further notes~~
+</p>
+
+
+<h3>Author(s)</h3>
+
+<p>
+~~who you are~~
+</p>
+
+
+<h3>References</h3>
+
+<p>
+~put references to the literature/web site here ~
+</p>
+
+
+<h3>See Also</h3>
+
+<p>
+~~objects to SEE ALSO as <code><a href="../../../doc/html/search/SearchObject.html?~~fun~~">~~fun~~</a></code>, ~~~
+</p>
+
+
+<h3>Examples</h3>
+
+<pre>
+##---- Should be DIRECTLY executable !! ----
+##-- ==&gt;  Define data, use random,
+##--         or do  help(data=index)  for the standard data sets.
+
+## The function is currently defined as
+function(partition,null,tau)
+ {
+  #####################################################################
+  #
+  # Evaluate the log prior mass of a Double Polya Prior-augmented state.
+  #
+  # This is the prior for an augmented-state partition in ISN model
+  # (Used in the data-augmentation part of the MCMC algorithm.)
+  #
+  #
+  # partition = nswitch vector holding distinct path labels
+  # null = logical vector indicating active (i.e. relevant) switches
+  # tau = clustering parameter: bigger &lt;-&gt; more paths
+  #
+  #####################################################################
+
+  nswitch &lt;- length(partition)
+
+  # The partition componenent
+  incidence &lt;- outer( partition, unique(partition), "==" )
+  sizes &lt;- t(incidence) 
+  npath &lt;- length(sizes)
+  logp &lt;-  npath*log(tau) + sum( lgamma(sizes) ) 
+  logp &lt;- logp + lgamma(tau)-lgamma(nswitch+tau)
+
+  # The activation component
+  nnull &lt;- sum( null )
+  logp &lt;- logp+lgamma(nnull+1)+lgamma(nswitch-nnull+1)-lgamma(nswitch+2)
+  return( logp )
+ }
+</pre>
+
+</body></html>

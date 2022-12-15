@@ -1,0 +1,360 @@
+"disn" <-
+function(theta,data,partition,null)
+{
+ #######################################################################
+ #
+ # Calculate the log joint probability density of 
+ # aberrations in the Instability-Selection-Network model
+ #
+ # theta = (alpha, beta)  in (0,1)^2
+ # data = ntumor x nswitch matrix of binaries 0/1 indicating abnormality
+ # partition = nswitch vector holding distinct path labels
+ # null = logical vector indicating null switches
+ #        (note this is slightly different than the null label in risn.R)
+ #
+ #######################################################################
+
+  alpha <- theta[1]; beta <- theta[2]
+  gamma <- 0
+
+  # First get the prior part of the log density
+  s0 <- sum( data==0 );  s1 <- sum( data==1 )
+  logprob <- s0*log( 1-alpha ) + s1*log( alpha ) 
+  
+  # In case all switches are in the null path we're done; otherwise
+  if( !( all( null ) ) )
+   {
+    #  Now compute the remaining sufficient statistics. 
+    #  i.e., for each path j, in each tumor i, we need S_ij, the
+    #  number of non-defects.
+    #  To do so create an incidence matrix nswitch x npath 
+    #  indicating the path label of each switch.
+    apart <- partition[!null]    # active partition
+    adat <-  data[,!null]        # active data
+    incidence <- outer( apart, unique(apart), "==" )
+    npath <- ncol(incidence)
+    stats <- (1-adat) %*% incidence  # this is ntumor x npath
+    # Now compute the numerator of the log-density
+    one <- matrix(1,npath,1)
+    tmp <- c( log( 1-beta^stats ) %*% one )
+    numer <- 1 - (1-gamma)*exp(tmp)
+    # Compute the denominator (same for all tumors)
+    # First get the path lengths
+    plen <- rep(1,sum(!null)) %*% incidence
+    denom <- 1-(1-gamma)*prod( 1-(1-(1-alpha)*(1-beta) )^plen  )
+    # Put it all together
+    logprob <- logprob + sum( log(numer) - log( denom ) )
+   }
+  return(  logprob )
+ }
+"dpolya1" <-
+function(partition,null,tau)
+ {
+  #####################################################################
+  #
+  # Evaluate the log prior mass of a Double Polya Prior-augmented state.
+  #
+  # This is the prior for an augmented-state partition in ISN model
+  # (Used in the data-augmentation part of the MCMC algorithm.)
+  #
+  #
+  # partition = nswitch vector holding distinct path labels
+  # null = logical vector indicating active (i.e. relevant) switches
+  # tau = clustering parameter: bigger <-> more paths
+  #
+  #####################################################################
+
+  nswitch <- length(partition)
+
+  # The partition componenent
+  incidence <- outer( partition, unique(partition), "==" )
+  sizes <- t(incidence) %*% rep(1,nswitch)
+  npath <- length(sizes)
+  logp <-  npath*log(tau) + sum( lgamma(sizes) ) 
+  logp <- logp + lgamma(tau)-lgamma(nswitch+tau)
+
+  # The activation component
+  nnull <- sum( null )
+  logp <- logp+lgamma(nnull+1)+lgamma(nswitch-nnull+1)-lgamma(nswitch+2)
+  return( logp )
+ }
+"dpolya2" <-
+function(partition,null,tau)
+ {
+  ####################################################################
+  #
+  # Evaluate the log of the probability mass of a double-Polya prior.
+  # This is used as the prior distribution for the network structure
+  # in the  Instability-Selection-Network Model.
+  #
+  # partition = nswitch vector holding distinct path labels
+  # null = logical vector indicating active (i.e. relevant) switches
+  # tau = clustering parameter: bigger <-> more paths
+  #
+  ####################################################################
+
+  # first the null part of the logprior  (beta-binomial piece)
+  nswitch <- length(partition)
+  nnull <- sum( null )
+  logp <- lgamma(nnull+1)+lgamma(nswitch-nnull+1)-lgamma(nswitch+2)
+
+  # Now the cluster prior on the other switches
+  if( !all(null) )
+   {
+    mm <- nswitch-nnull
+    apart <- partition[!null] 
+    incidence <- outer( apart, unique(apart), "==" )
+    sizes <- t(incidence) %*% rep(1,sum(!null)) 
+    npath <- length(sizes)
+    logp <- logp + npath*log(tau) + sum( lgamma(sizes) ) 
+    logp <- logp + lgamma(tau)-lgamma(mm+tau)
+   }
+  return( logp )
+ }
+"mhisn" <-
+function(dat,mcmc,tau=1,theta0,counter=T)
+ {
+  # dat = binary matrix, ntumor x nswitch, holding CGH profiles
+  # mcmc = list with driving instructions
+  #        nskip  = size of stretch between saved states
+  #        nsave  = number of saved states
+  #        eps    = window for parameter update
+  #        pup    = proportion of scans that have parameter  updates
+  #        nmove  = number of switches moved in 1st network update
+  #        nperm  = number of switches permuted in 2nd network update
+  #        padI =  proportion of switches to change in first AD update
+  #        padII (<1/2) = chance of full activation / deactivation in 2nd AD
+  #
+  # tau > 0.      The cluster prior hyperparameter
+  # theta0          Starting values for alpha and beta
+	
+  # Initial state (a biased prior draw, keeping the initial network small)
+  nswitch <- ncol(dat)
+  nprob <- runif(1,min=(3/4), max=1 )
+  null <- sample( c(T,F), replace=T, size=nswitch, prob=c(nprob,1-nprob) ) 
+  partition <- rpolya(nswitch,tau)
+  theta <- theta0
+
+  # Evaluate the loglikelihood and logprior of starting state
+  loglik <- disn(theta, dat, partition, null)
+  logpri <- dpolya1(partition,null,tau)
+
+  # Create objects to save MCMC output.
+  pup <- mcmc$pup
+  nperm <- mcmc$nperm  # number of switches permuted in Update II
+  nmove <- mcmc$nmove
+  padI <- mcmc$padI
+  padII   <- mcmc$padII
+  nscan <- mcmc$nsave*mcmc$nskip
+
+  psave <- matrix(NA,mcmc$nsave,nswitch)     # saved partitions
+  liksave <- numeric(mcmc$nsave)             # saved log-likelihood 
+  prisave <- numeric(mcmc$nsave)             # saved log-prior
+  thsave <- matrix(NA,mcmc$nsave,2)          # saved parameter values
+  dimnames(thsave) <- list( NULL, c("alpha","beta") )
+  acrate <- rep(0,5)              # acceptance rates
+  names(acrate) <- c("change path","swap","act./deact. I",
+			"act./deact. II", "params")
+
+  ####################################################################
+  # Run MCMC.
+
+  skipcount <- 0
+  isave <- 1
+  for(iscan in 1:nscan)
+   {
+    skipcount <- skipcount+1
+    ##################################################################
+    #
+    # Propose a new network configuration (4 move types)
+    #
+    ##################################################################
+    # 
+    # Update I: change the partition structure
+
+    ii <- sample( (1:nswitch), size=nmove,replace=F ) #source switches
+    maintain <- rep(T,nswitch)
+    maintain[ii] <- F
+    # replace from the conditional prior (so prior cancels in MH ratio)
+    proposal <- partition
+    proposal[ii] <- runif(nmove)  # possible new labels
+    existing <- partition[maintain]
+    for( i in 1:nmove )
+      {
+       pwild <- tau/(tau+nswitch-nmove+i-1)
+       if( runif(1) > pwild ) # don't take the new label
+         { proposal[(ii[i])] <- sample( existing, size=1 ) }
+       existing <- c(existing, proposal[(ii[i])] )
+      }
+    # Check whether or not to accept
+    ploglik <- disn(theta, dat, proposal, null )
+    logmh <- ploglik-loglik
+    ok <- !is.na(logmh)
+    if( ok )
+     {
+      accept <- ( log(runif(1)) <= logmh )
+      if( accept )
+       {
+        partition <- proposal
+        loglik <-  ploglik
+        logpri <- dpolya1(partition,null,tau)
+        acrate[1] <- acrate[1]+1
+       }
+     }
+    ##################################################################
+    #
+    # Update II: shuffle the partition
+
+    ii <- sample( (1:nswitch), size=nperm, replace=F)
+    jj <- sample(ii)  # permute these
+    proposal <- partition
+    proposal[ii] <- partition[jj]
+    # Check whether or not to accept if proposal != partition
+    if( any( proposal != partition ) )
+     {
+      ploglik <- disn(theta, dat, proposal, null )
+      logmh <- ploglik-loglik
+      ok <- !is.na(logmh)
+      if( ok )
+       {
+        accept <- ( log(runif(1)) <= logmh )
+        if( accept )
+          {
+            partition <- proposal
+            loglik <-  ploglik
+            acrate[2] <- acrate[2]+1
+           }
+         }
+       }
+    ##################################################################
+    #
+    # Update method III:
+    #   Change the activation status (active/null) of a random set
+    change <- ( runif(nswitch) <= padI )
+    if( any(change) )
+     {
+      nullstar <- null
+      nullstar[change] <- !null[change]
+      ploglik <- disn(theta, dat, partition, nullstar )
+      plogpri <- dpolya1(partition,nullstar,tau)
+      logmh <- ploglik-loglik+plogpri-logpri
+      ok <- !is.na(logmh)
+      if( ok )
+       {
+        accept <- ( log(runif(1)) <= logmh )
+        if( accept )
+         {
+          null <- nullstar
+          logpri <- plogpri
+          loglik <- ploglik
+          acrate[3] <- acrate[3]+1
+         }
+       }
+     }
+    ##################################################################
+    # Update method IV:
+    #   Change the activation status of a whole path (of length >= 2)
+     
+    path <- sample( partition, size=1 )
+    ind <- (partition == path) 
+    mm <- sum(ind)
+    if( mm > 1 )  # attempt only if path at least 2 switches long
+     {
+      nullpart <- null[ind]
+      mm0 <- sum( nullpart )
+      lqnum <- log( padII )   # log( q(state* , state ) )
+      if( mm0 > 0 & mm0 < mm )
+       {
+        lqnum <- log( 1 - 2*padII ) - log( 2^mm - 2 ) 
+       }
+      xi <- runif(1)
+      if( xi <= padII )  # fully activate path (make sure padII < 1/2)
+       {
+         nullnew <- rep(F,mm)
+         lqden <- log( padII )
+       }
+      else if( xi <= 2*padII )  # fully deactivate path
+       {
+         nullnew <- rep(T,mm)
+         lqden <- log( padII )
+       }
+      else  # sample one of the 2^mm - 2 mixed arrangements
+       {
+         nullnew <- mixsample( mm )
+         lqden <- log( 1 - 2*padII ) - log( 2^mm - 2 ) 
+       } 
+      nullstar <-  null
+      nullstar[ind] <- nullnew
+      ploglik <- disn(theta, dat, partition, nullstar )
+      plogpri <- dpolya1(partition,nullstar,tau)
+      logmh <- ploglik-loglik+plogpri-logpri+lqnum - lqden
+      ok <- !is.na(logmh)
+      if( ok )
+       {
+        accept <- ( log(runif(1)) <= logmh )
+        if( accept )
+         {
+          null <- nullstar
+          logpri <- plogpri
+          loglik <- ploglik
+          acrate[4] <- acrate[4]+1
+         }
+       }
+     }
+    ###################################################################
+    # Update the instability parameters theta=(alpha,beta) on some scans
+    # symmetric random walk proposal
+ 
+    if( runif(1) < pup )
+     { 
+      thetastar <- theta + mcmc$eps*runif(2,min=(-1),max=(1))
+      # enforce a prior ordering alpha >= beta
+      aok <- (thetastar[2]> 0)&(thetastar[1]<1)&(thetastar[1]>=thetastar[2])
+      if( aok )
+       {
+        # Check whether or not to accept the proposal 
+        # (The partition prior is not a factor.) 
+  
+        ploglik <- disn(thetastar, dat, partition, null )
+        logmh <- ploglik - loglik
+        ok <- !is.na(logmh)
+        if(ok)
+         {
+          accept <- ( log(runif(1)) <= logmh )
+          if( accept )
+           {
+            theta <- thetastar 
+            loglik <- ploglik
+            acrate[5] <- acrate[5]+1
+           }
+         }
+       }
+     }
+    #####################################################################
+    #
+    # Store summary statistics periodically..
+    if( skipcount == mcmc$nskip )
+     {
+      skipcount <- 0
+      spart <- partition
+      spart[null] <- 0
+      psave[isave,] <- spart
+      liksave[isave] <- loglik
+      prisave[isave] <- dpolya2(spart,(spart==0),tau)
+      thsave[isave,] <- theta
+      if( counter ){ print( isave ) }
+      isave <- isave+1
+     }
+   }
+
+  # Normalize acceptance rate and store results.
+  acrate[3] <- acrate[3]/( 1-(1-padI)^nswitch )
+  acrate[5] <- acrate[5]/pup
+  acrate <- acrate/( nscan )
+  
+  results <- list( partitions=psave, loglik=liksave, logpri=prisave, 
+                   acrate=acrate, data=dat, theta=thsave, 
+                   mcmc=mcmc, tau=tau )
+
+  return( results )
+ }

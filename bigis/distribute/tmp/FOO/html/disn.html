@@ -1,0 +1,158 @@
+<html><head><title>R: ~~function to do ... ~~</title>
+<link rel="stylesheet" type="text/css" href="../../R.css">
+</head><body>
+
+<table width="100%" summary="page for disn {FOO}"><tr><td>disn {FOO}</td><td align="right">R Documentation</td></tr></table>
+<h2>~~function to do ... ~~</h2>
+
+
+<h3>Description</h3>
+
+<p>
+~~ A concise (1-5 lines) description of what the function does. ~~
+</p>
+
+
+<h3>Usage</h3>
+
+<pre>
+disn(theta, data, partition, null)
+</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>theta</code></td>
+<td>
+~~Describe <code>theta</code> here~~ </td></tr>
+<tr valign="top"><td><code>data</code></td>
+<td>
+~~Describe <code>data</code> here~~ </td></tr>
+<tr valign="top"><td><code>partition</code></td>
+<td>
+~~Describe <code>partition</code> here~~ </td></tr>
+<tr valign="top"><td><code>null</code></td>
+<td>
+~~Describe <code>null</code> here~~ </td></tr>
+</table>
+
+<h3>Details</h3>
+
+<p>
+~~ If necessary, more details than the __description__  above ~~
+</p>
+
+
+<h3>Value</h3>
+
+<p>
+~Describe the value returned
+If it is a LIST, use
+</p>
+<table summary="R argblock">
+<tr valign="top"><td><code>comp1 </code></td>
+<td>
+Description of `comp1'</td></tr>
+<tr valign="top"><td><code>comp2 </code></td>
+<td>
+Description of `comp2'</td></tr>
+</table>
+<p>
+
+...</p>
+
+<h3>WARNING</h3>
+
+<p>
+....
+</p>
+
+
+<h3>Note</h3>
+
+<p>
+~~further notes~~
+</p>
+
+
+<h3>Author(s)</h3>
+
+<p>
+~~who you are~~
+</p>
+
+
+<h3>References</h3>
+
+<p>
+~put references to the literature/web site here ~
+</p>
+
+
+<h3>See Also</h3>
+
+<p>
+~~objects to SEE ALSO as <code><a href="../../../doc/html/search/SearchObject.html?~~fun~~">~~fun~~</a></code>, ~~~
+</p>
+
+
+<h3>Examples</h3>
+
+<pre>
+##---- Should be DIRECTLY executable !! ----
+##-- ==&gt;  Define data, use random,
+##--         or do  help(data=index)  for the standard data sets.
+
+## The function is currently defined as
+function(theta,data,partition,null)
+{
+ #######################################################################
+ #
+ # Calculate the log joint probability density of 
+ # aberrations in the Instability-Selection-Network model
+ #
+ # theta = (alpha, beta)  in (0,1)^2
+ # data = ntumor x nswitch matrix of binaries 0/1 indicating abnormality
+ # partition = nswitch vector holding distinct path labels
+ # null = logical vector indicating null switches
+ #        (note this is slightly different than the null label in risn.R)
+ #
+ #######################################################################
+
+  alpha &lt;- theta[1]; beta &lt;- theta[2]
+  gamma &lt;- 0
+
+  # First get the prior part of the log density
+  s0 &lt;- sum( data==0 );  s1 &lt;- sum( data==1 )
+  logprob &lt;- s0*log( 1-alpha ) + s1*log( alpha ) 
+  
+  # In case all switches are in the null path we're done; otherwise
+  if( !( all( null ) ) )
+   {
+    #  Now compute the remaining sufficient statistics. 
+    #  i.e., for each path j, in each tumor i, we need S_ij, the
+    #  number of non-defects.
+    #  To do so create an incidence matrix nswitch x npath 
+    #  indicating the path label of each switch.
+    apart &lt;- partition[!null]    # active partition
+    adat &lt;-  data[,!null]        # active data
+    incidence &lt;- outer( apart, unique(apart), "==" )
+    npath &lt;- ncol(incidence)
+    stats &lt;- (1-adat) 
+    # Now compute the numerator of the log-density
+    one &lt;- matrix(1,npath,1)
+    tmp &lt;- c( log( 1-beta^stats ) 
+    numer &lt;- 1 - (1-gamma)*exp(tmp)
+    # Compute the denominator (same for all tumors)
+    # First get the path lengths
+    plen &lt;- rep(1,sum(!null)) 
+    denom &lt;- 1-(1-gamma)*prod( 1-(1-(1-alpha)*(1-beta) )^plen  )
+    # Put it all together
+    logprob &lt;- logprob + sum( log(numer) - log( denom ) )
+   }
+  return(  logprob )
+ }
+</pre>
+
+</body></html>

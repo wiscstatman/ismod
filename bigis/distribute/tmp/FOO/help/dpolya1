@@ -1,0 +1,92 @@
+dpolya1                 package:FOO                 R Documentation
+
+~~_f_u_n_c_t_i_o_n _t_o _d_o ... ~~
+
+_D_e_s_c_r_i_p_t_i_o_n:
+
+     ~~ A concise (1-5 lines) description of what the function does. ~~
+
+_U_s_a_g_e:
+
+     dpolya1(partition, null, tau)
+
+_A_r_g_u_m_e_n_t_s:
+
+partition: ~~Describe `partition' here~~ 
+
+    null: ~~Describe `null' here~~ 
+
+     tau: ~~Describe `tau' here~~ 
+
+_D_e_t_a_i_l_s:
+
+     ~~ If necessary, more details than the __description__  above ~~
+
+_V_a_l_u_e:
+
+     ~Describe the value returned If it is a LIST, use 
+
+  comp1 : Description of `comp1'
+
+  comp2 : Description of `comp2'
+
+     ...
+
+_W_A_R_N_I_N_G:
+
+     ....
+
+_N_o_t_e:
+
+     ~~further notes~~
+
+_A_u_t_h_o_r(_s):
+
+     ~~who you are~~
+
+_R_e_f_e_r_e_n_c_e_s:
+
+     ~put references to the literature/web site here ~
+
+_S_e_e _A_l_s_o:
+
+     ~~objects to SEE ALSO as `~~fun~~', ~~~
+
+_E_x_a_m_p_l_e_s:
+
+     ##---- Should be DIRECTLY executable !! ----
+     ##-- ==>  Define data, use random,
+     ##--         or do  help(data=index)  for the standard data sets.
+
+     ## The function is currently defined as
+     function(partition,null,tau)
+      {
+       #####################################################################
+       #
+       # Evaluate the log prior mass of a Double Polya Prior-augmented state.
+       #
+       # This is the prior for an augmented-state partition in ISN model
+       # (Used in the data-augmentation part of the MCMC algorithm.)
+       #
+       #
+       # partition = nswitch vector holding distinct path labels
+       # null = logical vector indicating active (i.e. relevant) switches
+       # tau = clustering parameter: bigger <-> more paths
+       #
+       #####################################################################
+
+       nswitch <- length(partition)
+
+       # The partition componenent
+       incidence <- outer( partition, unique(partition), "==" )
+       sizes <- t(incidence) 
+       npath <- length(sizes)
+       logp <-  npath*log(tau) + sum( lgamma(sizes) ) 
+       logp <- logp + lgamma(tau)-lgamma(nswitch+tau)
+
+       # The activation component
+       nnull <- sum( null )
+       logp <- logp+lgamma(nnull+1)+lgamma(nswitch-nnull+1)-lgamma(nswitch+2)
+       return( logp )
+      }
+

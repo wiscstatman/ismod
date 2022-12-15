@@ -1,0 +1,359 @@
+<html><head><title>R: ~~function to do ... ~~</title>
+<link rel="stylesheet" type="text/css" href="../../R.css">
+</head><body>
+
+<table width="100%" summary="page for mhisn {FOO}"><tr><td>mhisn {FOO}</td><td align="right">R Documentation</td></tr></table>
+<h2>~~function to do ... ~~</h2>
+
+
+<h3>Description</h3>
+
+<p>
+~~ A concise (1-5 lines) description of what the function does. ~~
+</p>
+
+
+<h3>Usage</h3>
+
+<pre>
+mhisn(dat, mcmc, tau=1, theta0, counter=T)
+</pre>
+
+
+<h3>Arguments</h3>
+
+<table summary="R argblock">
+<tr valign="top"><td><code>dat</code></td>
+<td>
+~~Describe <code>dat</code> here~~ </td></tr>
+<tr valign="top"><td><code>mcmc</code></td>
+<td>
+~~Describe <code>mcmc</code> here~~ </td></tr>
+<tr valign="top"><td><code>tau</code></td>
+<td>
+~~Describe <code>tau</code> here~~ </td></tr>
+<tr valign="top"><td><code>theta0</code></td>
+<td>
+~~Describe <code>theta0</code> here~~ </td></tr>
+<tr valign="top"><td><code>counter</code></td>
+<td>
+~~Describe <code>counter</code> here~~ </td></tr>
+</table>
+
+<h3>Details</h3>
+
+<p>
+~~ If necessary, more details than the __description__  above ~~
+</p>
+
+
+<h3>Value</h3>
+
+<p>
+~Describe the value returned
+If it is a LIST, use
+</p>
+<table summary="R argblock">
+<tr valign="top"><td><code>comp1 </code></td>
+<td>
+Description of `comp1'</td></tr>
+<tr valign="top"><td><code>comp2 </code></td>
+<td>
+Description of `comp2'</td></tr>
+</table>
+<p>
+
+...</p>
+
+<h3>WARNING</h3>
+
+<p>
+....
+</p>
+
+
+<h3>Note</h3>
+
+<p>
+~~further notes~~
+</p>
+
+
+<h3>Author(s)</h3>
+
+<p>
+~~who you are~~
+</p>
+
+
+<h3>References</h3>
+
+<p>
+~put references to the literature/web site here ~
+</p>
+
+
+<h3>See Also</h3>
+
+<p>
+~~objects to SEE ALSO as <code><a href="../../../doc/html/search/SearchObject.html?~~fun~~">~~fun~~</a></code>, ~~~
+</p>
+
+
+<h3>Examples</h3>
+
+<pre>
+##---- Should be DIRECTLY executable !! ----
+##-- ==&gt;  Define data, use random,
+##--         or do  help(data=index)  for the standard data sets.
+
+## The function is currently defined as
+function(dat,mcmc,tau=1,theta0,counter=T)
+ {
+  # dat = binary matrix, ntumor x nswitch, holding CGH profiles
+  # mcmc = list with driving instructions
+  #        nskip  = size of stretch between saved states
+  #        nsave  = number of saved states
+  #        eps    = window for parameter update
+  #        pup    = proportion of scans that have parameter  updates
+  #        nmove  = number of switches moved in 1st network update
+  #        nperm  = number of switches permuted in 2nd network update
+  #        padI =  proportion of switches to change in first AD update
+  #        padII (&lt;1/2) = chance of full activation / deactivation in 2nd AD
+  #
+  # tau &gt; 0.      The cluster prior hyperparameter
+  # theta0          Starting values for alpha and beta
+        
+  # Initial state (a biased prior draw, keeping the initial network small)
+  nswitch &lt;- ncol(dat)
+  nprob &lt;- runif(1,min=(3/4), max=1 )
+  null &lt;- sample( c(T,F), replace=T, size=nswitch, prob=c(nprob,1-nprob) ) 
+  partition &lt;- rpolya(nswitch,tau)
+  theta &lt;- theta0
+
+  # Evaluate the loglikelihood and logprior of starting state
+  loglik &lt;- disn(theta, dat, partition, null)
+  logpri &lt;- dpolya1(partition,null,tau)
+
+  # Create objects to save MCMC output.
+  pup &lt;- mcmc$pup
+  nperm &lt;- mcmc$nperm  # number of switches permuted in Update II
+  nmove &lt;- mcmc$nmove
+  padI &lt;- mcmc$padI
+  padII   &lt;- mcmc$padII
+  nscan &lt;- mcmc$nsave*mcmc$nskip
+
+  psave &lt;- matrix(NA,mcmc$nsave,nswitch)     # saved partitions
+  liksave &lt;- numeric(mcmc$nsave)             # saved log-likelihood 
+  prisave &lt;- numeric(mcmc$nsave)             # saved log-prior
+  thsave &lt;- matrix(NA,mcmc$nsave,2)          # saved parameter values
+  dimnames(thsave) &lt;- list( NULL, c("alpha","beta") )
+  acrate &lt;- rep(0,5)              # acceptance rates
+  names(acrate) &lt;- c("change path","swap","act./deact. I",
+                        "act./deact. II", "params")
+
+  ####################################################################
+  # Run MCMC.
+
+  skipcount &lt;- 0
+  isave &lt;- 1
+  for(iscan in 1:nscan)
+   {
+    skipcount &lt;- skipcount+1
+    ##################################################################
+    #
+    # Propose a new network configuration (4 move types)
+    #
+    ##################################################################
+    # 
+    # Update I: change the partition structure
+
+    ii &lt;- sample( (1:nswitch), size=nmove,replace=F ) #source switches
+    maintain &lt;- rep(T,nswitch)
+    maintain[ii] &lt;- F
+    # replace from the conditional prior (so prior cancels in MH ratio)
+    proposal &lt;- partition
+    proposal[ii] &lt;- runif(nmove)  # possible new labels
+    existing &lt;- partition[maintain]
+    for( i in 1:nmove )
+      {
+       pwild &lt;- tau/(tau+nswitch-nmove+i-1)
+       if( runif(1) &gt; pwild ) # don't take the new label
+         { proposal[(ii[i])] &lt;- sample( existing, size=1 ) }
+       existing &lt;- c(existing, proposal[(ii[i])] )
+      }
+    # Check whether or not to accept
+    ploglik &lt;- disn(theta, dat, proposal, null )
+    logmh &lt;- ploglik-loglik
+    ok &lt;- !is.na(logmh)
+    if( ok )
+     {
+      accept &lt;- ( log(runif(1)) &lt;= logmh )
+      if( accept )
+       {
+        partition &lt;- proposal
+        loglik &lt;-  ploglik
+        logpri &lt;- dpolya1(partition,null,tau)
+        acrate[1] &lt;- acrate[1]+1
+       }
+     }
+    ##################################################################
+    #
+    # Update II: shuffle the partition
+
+    ii &lt;- sample( (1:nswitch), size=nperm, replace=F)
+    jj &lt;- sample(ii)  # permute these
+    proposal &lt;- partition
+    proposal[ii] &lt;- partition[jj]
+    # Check whether or not to accept if proposal != partition
+    if( any( proposal != partition ) )
+     {
+      ploglik &lt;- disn(theta, dat, proposal, null )
+      logmh &lt;- ploglik-loglik
+      ok &lt;- !is.na(logmh)
+      if( ok )
+       {
+        accept &lt;- ( log(runif(1)) &lt;= logmh )
+        if( accept )
+          {
+            partition &lt;- proposal
+            loglik &lt;-  ploglik
+            acrate[2] &lt;- acrate[2]+1
+           }
+         }
+       }
+    ##################################################################
+    #
+    # Update method III:
+    #   Change the activation status (active/null) of a random set
+    change &lt;- ( runif(nswitch) &lt;= padI )
+    if( any(change) )
+     {
+      nullstar &lt;- null
+      nullstar[change] &lt;- !null[change]
+      ploglik &lt;- disn(theta, dat, partition, nullstar )
+      plogpri &lt;- dpolya1(partition,nullstar,tau)
+      logmh &lt;- ploglik-loglik+plogpri-logpri
+      ok &lt;- !is.na(logmh)
+      if( ok )
+       {
+        accept &lt;- ( log(runif(1)) &lt;= logmh )
+        if( accept )
+         {
+          null &lt;- nullstar
+          logpri &lt;- plogpri
+          loglik &lt;- ploglik
+          acrate[3] &lt;- acrate[3]+1
+         }
+       }
+     }
+    ##################################################################
+    # Update method IV:
+    #   Change the activation status of a whole path (of length &gt;= 2)
+     
+    path &lt;- sample( partition, size=1 )
+    ind &lt;- (partition == path) 
+    mm &lt;- sum(ind)
+    if( mm &gt; 1 )  # attempt only if path at least 2 switches long
+     {
+      nullpart &lt;- null[ind]
+      mm0 &lt;- sum( nullpart )
+      lqnum &lt;- log( padII )   # log( q(state* , state ) )
+      if( mm0 &gt; 0 &amp; mm0 &lt; mm )
+       {
+        lqnum &lt;- log( 1 - 2*padII ) - log( 2^mm - 2 ) 
+       }
+      xi &lt;- runif(1)
+      if( xi &lt;= padII )  # fully activate path (make sure padII &lt; 1/2)
+       {
+         nullnew &lt;- rep(F,mm)
+         lqden &lt;- log( padII )
+       }
+      else if( xi &lt;= 2*padII )  # fully deactivate path
+       {
+         nullnew &lt;- rep(T,mm)
+         lqden &lt;- log( padII )
+       }
+      else  # sample one of the 2^mm - 2 mixed arrangements
+       {
+         nullnew &lt;- mixsample( mm )
+         lqden &lt;- log( 1 - 2*padII ) - log( 2^mm - 2 ) 
+       } 
+      nullstar &lt;-  null
+      nullstar[ind] &lt;- nullnew
+      ploglik &lt;- disn(theta, dat, partition, nullstar )
+      plogpri &lt;- dpolya1(partition,nullstar,tau)
+      logmh &lt;- ploglik-loglik+plogpri-logpri+lqnum - lqden
+      ok &lt;- !is.na(logmh)
+      if( ok )
+       {
+        accept &lt;- ( log(runif(1)) &lt;= logmh )
+        if( accept )
+         {
+          null &lt;- nullstar
+          logpri &lt;- plogpri
+          loglik &lt;- ploglik
+          acrate[4] &lt;- acrate[4]+1
+         }
+       }
+     }
+    ###################################################################
+    # Update the instability parameters theta=(alpha,beta) on some scans
+    # symmetric random walk proposal
+ 
+    if( runif(1) &lt; pup )
+     { 
+      thetastar &lt;- theta + mcmc$eps*runif(2,min=(-1),max=(1))
+      # enforce a prior ordering alpha &gt;= beta
+      aok &lt;- (thetastar[2]&gt; 0)&amp;(thetastar[1]&lt;1)&amp;(thetastar[1]&gt;=thetastar[2])
+      if( aok )
+       {
+        # Check whether or not to accept the proposal 
+        # (The partition prior is not a factor.) 
+  
+        ploglik &lt;- disn(thetastar, dat, partition, null )
+        logmh &lt;- ploglik - loglik
+        ok &lt;- !is.na(logmh)
+        if(ok)
+         {
+          accept &lt;- ( log(runif(1)) &lt;= logmh )
+          if( accept )
+           {
+            theta &lt;- thetastar 
+            loglik &lt;- ploglik
+            acrate[5] &lt;- acrate[5]+1
+           }
+         }
+       }
+     }
+    #####################################################################
+    #
+    # Store summary statistics periodically..
+    if( skipcount == mcmc$nskip )
+     {
+      skipcount &lt;- 0
+      spart &lt;- partition
+      spart[null] &lt;- 0
+      psave[isave,] &lt;- spart
+      liksave[isave] &lt;- loglik
+      prisave[isave] &lt;- dpolya2(spart,(spart==0),tau)
+      thsave[isave,] &lt;- theta
+      if( counter ){ print( isave ) }
+      isave &lt;- isave+1
+     }
+   }
+
+  # Normalize acceptance rate and store results.
+  acrate[3] &lt;- acrate[3]/( 1-(1-padI)^nswitch )
+  acrate[5] &lt;- acrate[5]/pup
+  acrate &lt;- acrate/( nscan )
+  
+  results &lt;- list( partitions=psave, loglik=liksave, logpri=prisave, 
+                   acrate=acrate, data=dat, theta=thsave, 
+                   mcmc=mcmc, tau=tau )
+
+  return( results )
+ }
+</pre>
+
+</body></html>
