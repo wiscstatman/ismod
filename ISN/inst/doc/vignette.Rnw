@@ -1,0 +1,367 @@
+% \VignetteIndexEntry{Introduction to ISTN & ISGN}
+% \VignetteDepends{ISN}
+% \VignetteKeywords{ISGN, ISTN}
+% \VignettePackage{ISN}
+\documentclass[12pt]{article}
+\usepackage{amsmath}
+\newcommand{\pack}{\textsf{ISN}}
+\newcommand{\R}{\textsf{R}}
+\newcommand{\code}[1]{\textsf{#1}}
+\textwidth=6.2in
+\textheight=8.5in
+\oddsidemargin=.1in
+\evensidemargin=.1in
+\headheight=-.3in
+\title{Model-based clustering of genomic aberrations: 
+Generalizing the Instability Selection Network Model}
+\author{Hyuna Yang and Michael Newton} 
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Introduction} 
+We have developed two model-based clustering
+methodologies (instability selection tree-like network (ISTN) model
+and instability selection general network (ISGN) model) for
+characterizing dependency structure in cancer genomic aberrations
+recorded by comparative genomic hybridization (CGH), one of the
+techniques used to measure gains and losses (aberrations) in DNA copy 
+number. Two
+methods are based on Instability Selection Network (ISN) model
+proposed by Newton (2002). The ISN model provides sets of genomic
+aberrations called {\em ensembles} and the co-occurrence of all
+aberrations in an ensemble in a progenitor cell is relevant to tumor
+progression. In the original ISN model, aberrations residing on one
+ensemble could not reside on another, to simplify computations. To
+extend this limitation Newton {\em et al.} (2003) introduced the ISTN
+model in which ensembles can be organized in a tree-like
+structure. Later ISGN model was developed, which has no restrictions on
+the set of ensembles and thus give more flexible structure than a
+tree-like network. Two methodologies (ISTN and ISGN) are implemented
+in the \R{} package \pack{}. This vignette provides a brief overview
+of methodologies and their implementation.
+
+\section{Instability Selection Network} 
+ISN model analyzes CGH data using two biological features: genetic
+instability causing several forms of aberrations, and a cell-level
+selection that characterizes aberrations which are relevant to tumor
+growth.
+
+Suppose there are $n$ aberrations $\{1,2,\ldots,n\}$ to be measured in
+each tumor. Let $Z_i$ denote the indicator that aberration $i$ occurs
+in a progenitor cell, and let $X_i$ be the measurement of $Z_i$. The
+data from the tumor is $X=(X_1,\ldots,X_n)$, and both $X_i$ and $Z_i$
+are treated as Bernoulli trials. Then the ISN model can be:
+\begin{itemize} 
+\item[1.] Genetic Instability.\\ 
+Let each $Z_i\sim$ iid Bernoulli($\theta$). 
+This encodes, the idea of neutral random
+damage. Two error rates $\gamma$ and $\delta$ indicate measurement
+error. Then we define CGH observation $X_i$ conditionally on $Z_i$ as
+$P(X_i=1|Z_i=0)=\gamma$ and $P(X_i=0|Z_i=1)=\delta$. Thus $X_i \sim$ iid Bernoulli ($\alpha$), here
+$\alpha=(1-\delta)\theta+\gamma(1-\theta)$. 
+\item[2.] Cell-level Selection. \\ 
+Among the aberrations $Z=(Z_1,\ldots,Z_n)$, some might
+be noise and some might be critical aberrations for tumor
+progression. To describe those critical genomic aberrations, the ISN
+model uses sets of aberrations. The co-occurrence of aberrations in a
+set is beneficial to the tumor progress. To carry out this idea, let
+$\mathcal{C}=\{C_1,\ldots,C_K\}$ denote the {\em oncogenetic
+network}. For each $k=1,\ldots,K$, $ensemble$ $C_k$ is a collection of
+aberrations whose co-occurrence is beneficial to the tumor progress in
+a certain sense. Also let $C_0=\left[\bigcup\limits^K_{k=1}C_k\right]^c$ 
+be a collection of aberrations whose occurrence is
+irrelevant to tumor development.
+
+Selection, denoted by SEL, is defined SEL=$\bigcup\limits^K_{k=1}A_k$,
+where $A_k=\bigcap\limits_{i \in C_k}[Z_i=1]$. Namely, SEL occurs if
+all aberrations occur in any ensemble. Since $x$ is only observed when
+SEL occurs, the joint probability mass function for
+$x=(x_1,\ldots,x_n)$ is $p(x) = P(X=x|{\rm SEL}) = \frac{P(x)P({\rm SEL}|x)}{P({\rm SEL})}$.  
+\end{itemize}
+
+\section{Instability Selection Tree-like Network (ISTN)} 
+In ISTN model, ensembles can make a tree-like structure. To make the tree-like
+network, let edges ($\{e_1\},\{e_2\},\ldots$) be a partition
+(i.e. mutually exclusive and exhaustive) of the full set of the
+relevant aberrations such that each ensemble $C_k$ ($k=1,\ldots, K$)
+is a union of edges. To each edge $e_j$ we suppose there is a parent
+edge PA($e_j$) which is either one of the other edges or a special
+``root''. In tree-like network, a root is an imaginary starting point,
+and no edge can be a parent of the root or the root itself. If
+$e^{*}$=PA($e)$, then we say $e$ is a child edge of $e^{*}$. A leaf
+edge is an edge having no child edge. To be a tree-like network, we
+assume that the edges which constitute an ensemble form a unique path
+from any leaf $e$ to PA($e$) to PA(PA($e$)) and so on to the
+root. Each ensemble $C_k$ ($k=1,\ldots, K$) is such a path, and the
+set of ensembles make a tree-like network.
+
+To get a probability mass function, let us define some
+probabilities. Let ``edge $e$ is open'' mean that for all aberrations
+$i \in e$, $z_i=1$. For an $e$ which is not a leaf edge, let ``branch
+$e$ is open'' indicate there is at least one series of open edges from
+any leaf edge $e^{*}$ to PA($e^{*}$) to PA(PA($e^{*}$)) and so on to
+$e$. Let ``ensemble $C_k$ is open'' mean that for all aberrations $i
+\in C_k$, $z_{i}=1$. Let $p_e$ be the probability of each edge $e$
+being open, and $\tilde p_e$ be a probability of branch $e$ being
+open, both according to the instability component. When $e$ is a leaf
+edge, 
+\begin{equation} 
+\tilde p_e=p_e= P\left[ \bigcap\limits_{i \in e}[Z_i=1]\right]=\theta^{m_k} \nonumber 
+\end{equation} 
+otherwise, when
+$e$ is not a leaf edge, 
+\begin{equation} 
+\tilde p_e= P({\rm branch}~e~{\rm is~open})= p_e\left[1-\prod_{h:PA(h)=e}\{1-\tilde p_h\}\right]. \nonumber 
+\end{equation} 
+Similarly let $p_e(x)$ be the
+conditional probability of an edge $e$ being open given $x$, and
+$\tilde p_e(x)$ be a conditional probability of branch $e$ being open
+given $x$. When an edge $e$ is a leaf edge, 
+\begin{eqnarray}
+ p_e(x) &=& \tilde p_e(x) = P({\rm leaf~edge}~e~{\rm is~open}|X=x)
+        = P\left[ \bigcap\limits_{i \in e}[Z_i=1]|X=x \right]\nonumber\\
+        &=& P(Z_i=1|X_i=1)^{\sum\limits_{i\in e}(x_i)}P(Z_i=1|X_i=0)^{\sum\limits_{i \in e}(1-x_i)}= a^sb^{m_k-s}. \nonumber
+\end{eqnarray} 
+ Here $a=P(Z_i=1|X_i=1)=\frac{\theta(1-\delta)}{\theta(1-\delta)+(1-\theta)\gamma}$, $b=P(Z_i=1|X_i=0)=\frac{\theta\delta}{\theta\delta+(1-\theta)(1-\gamma)}$, and $s= \sum_{i \in e}(x_i)$, and $m_k$ = length of $e$; the number of aberrations in the $e$.\\ 
+Otherwise, when $e$ is not a leaf edge, and has parent edge PA($e$), 
+\begin{equation}
+\tilde p_e(x)= P({\rm branch}~e~{\rm is~open}|X=x)= p_e\left[1-\prod_{h:PA(h)=e}\{1-\tilde p_h(x)\}\right]. \nonumber
+\end{equation} 
+Thus using tree-like network,
+three rate parameters, $\theta, \gamma$ and $\delta$, and Bayes rule,
+we can get the joint distribution $p(x)$ for the aberration profile
+$x=(x_1,\ldots,x_n)$.  
+\begin{equation} 
+p(x) = P(X=x|{\rm SEL}) =\frac{P(x)P({\rm SEL}|x)}{P({\rm SEL})}= \alpha^{\sum_{i} x_i}(1-\alpha)^{\sum_{i}(1-x_i)}\left\{ \frac{1-\prod_{e:{\rm PA}(e)={\rm root}}[1-\tilde p_e(x)]}{1-\prod_{e:{\rm PA}(e)={\rm root}}[1-\tilde p_e]} \right\} \nonumber 
+\end{equation} 
+\section{Instability Selection General Network model} 
+In ISGN, the oncogenetic network is defined by
+$\mathcal{C}=\{C_1,\ldots,C_K\}$, and each ensemble
+$C_k,(k=1,\ldots,K)$ can be any set of aberrations. We do require that
+no ensemble is the subset of the other, i.e., $C_i \not \subset C_j$
+$(i,j=1,\ldots,K)$.
+
+To get the probability mass function in ISGN, again we use three
+parameter values, $\theta, \gamma$ and $\delta$. As a definition, SEL
+happens if all aberrations in at least one ensemble occur in a tumor
+progenitor cell. $P({\rm SEL})$ evaluation is feasible using the
+inclusion-exclusion approach, i.e.  
+\begin{equation} 
+P({\rm SEL})=\sum^K_{k=1}P(A_k)-\sum^{K-1}_{k=1}\sum^{K}_{l=(k+1)}P(A_k \cap A_l)+ \ldots+(-1)^{K-1}P(A_1 \cap \ldots A_K).\nonumber 
+\end{equation}
+here, $P(A_k)=P\big(\bigcap\limits_{i \in C_k}[Z_i=1]\big)=\theta^{s_k}$, 
+and $s_k= \sum\limits_{i \in C_k}X_i$. 
+Similarly we can derive $P({\rm SEL}|X=x)$ :
+\begin{equation} 
+P({\rm SEL}|X=x)=\sum^K_{k=1}P(B_k)-\sum^{K-1}_{k=1}\sum^{K}_{l=(k+1)}P(B_k \cap B_l)+ \ldots+(-1)^{K-1}P(B_1 \cap \ldots B_K).\nonumber 
+\end{equation}
+here $P(B_k)=P\big(\bigcap\limits_{i \in C_k}[Z_i=1|X_i]\big)=a^{m_k}b^{m_k-s_k}$,
+$a=P(Z_i=1|X_i=1)=\frac{\theta(1-\delta)}{\theta(1-\delta)+(1-\theta)\gamma}$,
+$b=P(Z_i=1|X_i=0)=\frac{\theta\delta}{\theta\delta+(1-\theta)(1-\gamma)}$, 
+$s_k= \sum\limits_{i \in C_k}X_i$ and $m_k$ = the number of aberrations in the $C_k$. Using Bayes rule, the joint distribution for one tumor $x=(x_1,\ldots,x_n)$ is
+{\footnotesize\begin{eqnarray} 
+p(x) &=& P(X=x|{\rm SEL}) = \frac{P(x)P({\rm SEL}|x)}{P({\rm SEL})}\nonumber\\ 
+&=& \alpha^{\sum_{i} x_i} (1-\alpha)^{\sum_{i}(1-x_i)}\left\{\frac{\sum^K_{k=1}P(B_k)-\sum^{K-1}_{k=1}\sum^{K}_{l=(k+1)}P(B_k\cap B_l)+ \ldots+(-1)^{K-1}P(B_1 \cap \ldots B_K)}{\sum^K_{k=1}P(A_k)-\sum^{K-1}_{k=1}\sum^{K}_{l=(k+1)}P(A_k \cap A_l)+ \ldots+(-1)^{K-1}P(A_1 \cap \ldots A_K)}\right\} \nonumber
+\end{eqnarray} } 
+\section{ISN} 
+To get the posterior distribution,
+MCMC method is used and functions are implemented in \pack{}
+package. The \pack{} package can be loaded by
+
+<<echo=TRUE>>=
+library(ISN)
+@
+
+\noindent 
+The main functions available in \pack{} are:\\
+
+\begin{tabular}{ll}
+\multicolumn{2}{l}{Functions related with ISTN}\\
+  \code{Trisn} & sample random binary vectors from a tree-like network  \\
+               & using rejection sampling. \\
+  \code{Tnet}  & simulate a tree-like network  \\
+  \code{Tlik}  & calculate the log joint probability density of \\
+               & aberrations in the ISTN model. \\
+  \code{ISTN}  & fit the ISTN model using MCMC\\
+  \code{Tcluster} & conduct a hierarchical clustering  \\
+  \code{Tdraw}  & draw a tree-like network \\
+&\\
+\multicolumn{2}{l}{Functions related with ISGN}\\
+  \code{Grisn} & sample random binary vectors from a general network \\
+               & using rejection sampling. \\
+  \code{Gnet}  & simulate a general network \\
+  \code{Glik}  & calculate the log joint probability density of \\
+               & aberrations in the ISGN model. \\
+  \code{ISGN}  & fit the ISGN model using MCMC \\
+  \code{Gscore} & scoring a network using 4 different methods \\
+  \code{Ginter} & generate interactions \\
+  \code{Ginternum} & plot the number of interactions \\
+\end{tabular}\\
+
+ISTN and ISGN methods are developed especially to analyze CGH data. CGH data record chromosome gain or loss using binary variable. 0 indicates no observed aberration and 1 indicates observed aberration. One example of CGH data is Renal cell carcinoma (RCC) profile obtained by F. Jiang and H. Moch (2000). \\
+The data can be read in by
+<<data read>>=
+data(rcc)
+rcc2<-rcc$data
+nrow(rcc2)
+@
+
+\noindent \code{plot.matrix} function shows full data. In Figure \ref{fig:dplot}, each dark shaded squares indicates an observed aberration.  
+\begin{figure}[htbp]
+  \centering
+<<plot,fig=TRUE>>=
+plot.matrix(rcc2, xlab="Aberrations", ylab="RCC Tumor ID")
+@  
+\caption{Renal Cell Carcinomas (RCC) cCGH data collected from 116 tumors by 
+Jiang and Moch (Jiang {\em et al.}, 2000).}
+\label{fig:dplot}
+\end{figure}
+
+Here instead of analyzing the RCC data, we use a small simulated data to 
+introduce the functions in \pack{}.
+
+\noindent \code{Trisn} function generates a data set from a tree-like
+network. Following examples generates 100 data from 20 aberrations $\{$a,b,$\ldots$,t$\}$. Note that among 20 aberrations, 6
+are relevant. 
+<<istn>>= 
+para <- c(0.05, 0.01, 0.01)
+partition<-c(1,2,3,4,5,6, rep(1,14)) 
+parent<-c(0,0,1,1,2,2,rep(0,14))
+neutral<-c(rep(0,6),rep(1,14)) 
+numtumor<-100
+data1 <- Trisn(para,partition, parent,neutral, numtumor)
+colnames(data1)<-letters[1:length(partition)] 
+data1[1,] 
+@
+\noindent \code{Tdraw} function plot the tree-like network. It returns
+two figures: top one shows a tree-like network and bottom one shows
+number of tumors experiencing each ensemble. Using previous tree-like
+network and 100 simulated data, Figure \ref{fig:treen} draws the
+network (top) and shows the number of tumors experiencing each edge
+and ensemble (bottom).  
+\begin{figure}[htbp]
+\centering
+<<treeplot1,fig=TRUE>>=
+Tdraw(partition, neutral, parent, data1, line1=1, num1=1,
+letter1=1, main1="Tree-like Network (true network)",
+main2="Number of tumors experiencing each edge/ensemble")  
+@
+\caption{True tree-like network.}
+\label{fig:treen}
+\end{figure}
+
+\noindent Usually to fit the ISTN model, we select some significant
+aberrations and run MCMC using selected aberrations. Function
+\code{ISTN} is a main function implementing MCMC. It saves one network
+in every \code{nskip} scans, and saves total \code{nsave}
+networks. Usually the MCMC run is longer than this example. Function
+\code{ISTN} returns the posterior probabilities of \code{nsave}
+networks along with the maximum likelihood network.  
+<<mcmc main>>=
+sdata <- data1[,c(1:6)] 
+mcmc <- list(nsave=500, nskip=10, nperm=3,padI=.15, padII=.15) 
+res1<-res(6) 
+para <- c(0.05, 0.01, 0.01) 
+mh <-ISTN(sdata,mcmc=mcmc,tau=4,para,res1) 
+mh$mtree 
+@
+
+\noindent To draw the maximum log-likelihood network among
+\code{nsave} networks, again function \code{Tdraw} is used. Figure \ref{fig:treen1} shows MLE tree-like network.
+\begin{figure}[htbp]
+  \centering
+<<treeplot,fig=TRUE>>=
+index<-c(1:mcmc$nsave)
+i<-index[max(mh$loglik)==mh$loglik][1]
+Tdraw(mh$partition[i,],mh$neutral[i,],mh$parent[i,],sdata,
+line1=1,num1=1,letter1=1,main1="MLE tree-like network",
+main2="Number of tumors experiencing each edge/ensemble")  
+@
+\caption{MLE tree-like network.}
+\label{fig:treen1}
+\end{figure}
+
+
+Another way to summarize the posterior probabilities is conducting a
+hierarchical clustering. Figure \ref{fig:clut} shows hierarchical
+clustering using \code{nsave} networks.  
+\begin{figure}[htbp]
+  \centering
+<<fig=TRUE>>=
+Tcluster(mh, colnames(sdata))
+@
+\caption{Hierarchical clustering.}
+\label{fig:clut}
+\end{figure}
+
+\newpage
+Let us look at functions use in ISGN model. 
+
+Function \code{Ginternum} shows the number of single, pair, triple and quadruple interactions in RCC data.
+\begin{figure}[htbp]
+  \centering
+<<fig=TRUE>>=
+Ginternum(rcc2)
+@
+\caption{Hierarchical clustering.}
+\label{fig:clut}
+\end{figure}
+
+To generate data from a general network function \code{Grisn} is used. Following example
+generates 100 data from 20 aberrations $\{$a,b,$\ldots$,t$\}$.
+ 
+<<isgn>>= 
+para <- c( .05,.99,.01) 
+numtumor <- 100
+C <- matrix(0,3,20) 
+C[1,]<-c(1,1,1,0,0,rep(0,15))
+C[2,]<-c(0,0,1,1,1,rep(0,15)) 
+C[3,]<-c(1,1,0,0,1,rep(0,15)) 
+data1 <-Grisn(para,C,numtumor) 
+colnames(data1)<- letters[1:ncol(C)] 
+data1[1,]
+@
+
+\noindent
+To analyze the simulated data using ISGN model, first, one needs to generate a
+candidate set. Function \code{Gcandi} is used to generate a candidate set from data. 
+<<isgn1>>=
+pval1 <- .1; pval2<- .1; error <- .1
+candid <- Gcandi(data1,pval1,pval2,error)
+nrow(candid)
+@
+
+\noindent
+Using uniform prior, function \code{ISGN} runs MCMC. This example runs a short chain but it is recommended to run a long chain. Function \code{ISGN} returns \code{nsave} general networks along with maximum a posterior (MAP) network.  
+<<mcmc run>>=
+mcmc<-list(padI=.01,nsave=500,nskip=10, tmax=4)
+pri<-rep(0,20)
+a<-ISGN(data1, mcmc, para, pri, candid)
+a$mnetwork
+@
+
+\noindent
+To see how well a network explains the data, function \code{Gscore} calculates the score based on 4 different method. 
+<<score>>=
+Gscore(data1, a$bestnet)
+@
+
+
+\vspace{.3in}
+
+\section{References}
+
+\begin{enumerate}
+
+\item{\sc Jiang, F., Desper, R., Papadimitriou, C.H., Schaffer, A.A., Kallioniemi, O.P., Richter, J., Schraml, P., Sauter, G., Mihatsch, M.J., Moch, H.}(2000), Construction of evolutionary tree models for renal cell carcinoma from comparative genomic hybridization data, {\it Cancer Research}, {\bf 60}, 6503-6509.  
+
+\item{\sc Newton, M.A.}(2002), Discovering combinations of Genomic aberrations associated with cancer, {\it Journal of the American Statistical Association}, {\bf 97}, 931-942. 
+
+\item{\sc Newton, M.A., Yang, H. Gorman, P., Tomlinson, T., Roylance, R.}(2003), A statistical approach to modeling genomic aberrations in cancer cells (with discussion) {\it Bayesian statistics}, {\bf 7}, ed. {\sc Bernardo, J.M., Bayarri, M.J., Berger, J.O, Dawid, A.P., Hecherman, D., Smith, A.F.M., West, M.}, Oxford University Press.
+
+\item{\sc Yang, H}(2005), Model-based clustering of genomic aberrations: Generalizing the instability selection network model, Doctoral Dissertation, {\it Department of Statistics, UW-Madison}. 
+\end{enumerate}
+
+\end{document}

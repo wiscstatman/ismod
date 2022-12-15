@@ -1,0 +1,2 @@
+library(ISN)
+demo(ISN)

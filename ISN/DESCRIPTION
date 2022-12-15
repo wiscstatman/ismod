@@ -1,0 +1,9 @@
+Package: ISN
+Version: 1.1.0
+Date: 2005/08/01
+Title: ISN
+Author: Michael Newton and Hyuna Yang
+Maintainer: Hyuna Yang <hyuna@stat.wisc.edu>
+Description: ISN
+License: GPL Version 2.0 or later.
+Packaged: Mon Aug  1 00:34:00 2005; hyuna
